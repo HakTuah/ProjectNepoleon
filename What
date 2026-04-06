@@ -1,0 +1,954 @@
+local KeepInfYield = true
+local TeleportCheck = false
+local Players = game:GetService("Players")
+local queueteleport_func = queueteleport or queue_on_teleport or (syn and syn.queue_on_teleport) or (fluxus and fluxus.queue_on_teleport) or (codex and codex.queue_on_teleport)
+
+if queueteleport_func then
+    Players.LocalPlayer.OnTeleport:Connect(function(State)
+        if KeepInfYield and (not TeleportCheck) then
+            TeleportCheck = true
+            queueteleport_func("loadstring(game:HttpGet('https://pastebin.com/raw/8WrUzkDb'))()")
+            print("[Auto-Rejoin] Script queued for next server!")
+        end
+    end)
+    print("[Auto-Rejoin] Ready - Will auto-execute on teleport/rejoin")
+else
+    warn("[Auto-Rejoin] WARNING: queueteleport/queue_on_teleport not found!")
+end
+
+local SCRIPT_URL = "https://pastebin.com/raw/8WrUzkDb"
+
+local old_tp_bypass; old_tp_bypass = hookmetamethod(game, "__namecall", function(self, ...)
+    if tostring(self) == "Returner" then
+        return "  ___XP DE KEY"
+    end
+    return old_tp_bypass(self, ...)
+end)
+
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local Stats = game:GetService("Stats")
+local TweenService = game:GetService("TweenService")
+local MarketplaceService = game:GetService("MarketplaceService")
+
+repeat task.wait() until game:IsLoaded()
+workspace:WaitForChild("Living")
+
+local LocalPlayer = Players.LocalPlayer
+repeat task.wait() until LocalPlayer.Character
+local Backpack = LocalPlayer.Backpack
+
+print("[special.farm] Waiting 3 seconds before starting...")
+task.wait(5)
+print("[special.farm] Starting now!")
+
+task.spawn(function()
+    local pg = LocalPlayer.PlayerGui
+    pcall(function()
+        if not pg:FindFirstChild("HUD") then
+            game:GetService("ReplicatedStorage").Objects.HUD:Clone().Parent = pg
+        end
+    end)
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local re = char:FindFirstChild("RemoteEvent")
+    if re then pcall(function() re:FireServer("PressedPlay") end) end
+    local ls1 = pg:FindFirstChild("LoadingScreen1")
+    if ls1 then ls1:Destroy() end
+    local ls = pg:FindFirstChild("LoadingScreen")
+    if ls then ls:Destroy() end
+    pcall(function() LocalPlayer:SetAttribute("LOADED", "Skip") end)
+    task.spawn(function()
+        local dof = game.Lighting:WaitForChild("DepthOfField", 10)
+        if dof then dof:Destroy() end
+    end)
+    pcall(function()
+        local wls = workspace:FindFirstChild("LoadingScreen")
+        if wls then
+            local song = wls:FindFirstChild("Song")
+            if song then song:Destroy() end
+        end
+    end)
+end)
+
+local maxLimits = {
+    ["Mysterious Arrow"] = 25,
+    ["Rokakaka"] = 25,
+    ["Gold Coin"] = 45,
+    ["Diamond"] = 25,
+    ["Pure Rokakaka"] = 999,
+    ["Quinton's Glove"] = 10,
+    ["Steel Ball"] = 10,
+    ["Rib Cage of The Saint's Corpse"] = 10,
+    ["Zeppeli's Hat"] = 10,
+    ["Zepellin's Headband"] = 10,
+    ["Caesar's Headband"] = 10,
+    ["Clackers"] = 10,
+    ["Stone Mask"] = 10,
+    ["Ancient Scroll"] = 10,
+    ["Dio's Diary"] = 10,
+    ["Lucky Stone Mask"] = 999,
+    ["Lucky Arrow"] = 999,
+    ["Gold Umbrella"] = 999,
+    ["Christmas Present"] = 999,
+}
+
+local nonSellable = {
+    "Blue Candy", "Red Candy", "Green Candy", "Yellow Candy",
+    "Lucky Arrow", "Lucky Stone Mask", "Christmas Present",
+}
+
+local PlayerOwns2xInv = false
+pcall(function()
+    PlayerOwns2xInv = MarketplaceService:UserOwnsGamePassAsync(LocalPlayer.UserId, 14597778)
+end)
+
+local function getCharacter()
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return LocalPlayer.Character
+    end
+    return LocalPlayer.CharacterAdded:Wait()
+end
+
+local function getRootPart()
+    return getCharacter():WaitForChild("HumanoidRootPart")
+end
+
+local function getRemoteEvent()
+    return getCharacter():WaitForChild("RemoteEvent")
+end
+
+local function getRemoteFunction()
+    return getCharacter():WaitForChild("RemoteFunction")
+end
+
+local function getPing()
+    local ok, v = pcall(function()
+        return Stats.Network.ServerStatsItem["Data Ping"]:GetValue() / 100
+    end)
+    return ok and v or 50
+end
+
+local function fireDialogue(npc, dialogue, option)
+    pcall(function()
+        getRemoteEvent():FireServer("EndDialogue", {
+            NPC = npc,
+            Dialogue = dialogue,
+            Option = option,
+        })
+    end)
+end
+
+local function getBpItems(name)
+    local t = {}
+    for _, v in pairs(Backpack:GetChildren()) do
+        if v.Name == name then table.insert(t, v) end
+    end
+    return t
+end
+
+local function isFullOfItem(itemName)
+    local max = (maxLimits[itemName] or 999) * (PlayerOwns2xInv and 2 or 1)
+    return #getBpItems(itemName) >= max
+end
+
+LocalPlayer.ChildAdded:Connect(function(child)
+    if child.Name == "Backpack" then Backpack = child end
+end)
+
+local statsSold = 0
+local items = {}
+
+local function updateItems()
+    items = {}
+    for itemName in pairs(maxLimits) do items[itemName] = 0 end
+    local function countIn(container)
+        if not container then return end
+        for _, item in pairs(container:GetChildren()) do
+            if item and item.Name and maxLimits[item.Name] then
+                items[item.Name] = (items[item.Name] or 0) + 1
+            end
+        end
+    end
+    countIn(LocalPlayer.Backpack)
+    if LocalPlayer.Character then countIn(LocalPlayer.Character) end
+end
+
+local function findSellRemote()
+    local plr = LocalPlayer
+    if plr and plr.Character then
+        for _, obj in pairs(plr.Character:GetChildren()) do
+            if obj:IsA("RemoteEvent") then return obj end
+        end
+    end
+    local places = { workspace, game:GetService("ReplicatedStorage"), game:GetService("Players") }
+    for _, place in pairs(places) do
+        if place then
+            for _, obj in pairs(place:GetDescendants()) do
+                if obj:IsA("RemoteEvent") and (
+                    obj.Name:lower():find("remote") or
+                    obj.Name:lower():find("sell") or
+                    obj.Name:lower():find("server") or
+                    obj.Name:lower():find("_ev")
+                ) then return obj end
+            end
+        end
+    end
+    for _, obj in pairs(workspace:GetChildren()) do
+        if obj:IsA("RemoteEvent") then return obj end
+    end
+    return nil
+end
+
+local function sellItem(item)
+    if not item then return false end
+    local itemName = typeof(item) == "Instance" and item.Name or item
+    if table.find(nonSellable, itemName) then return false end
+    local plr = LocalPlayer
+    if not plr then return false end
+    local instanceToSell
+    if typeof(item) == "Instance" then
+        instanceToSell = item
+    elseif typeof(item) == "string" then
+        instanceToSell = plr.Backpack:FindFirstChild(item)
+            or (plr.Character and plr.Character:FindFirstChild(item))
+    else
+        return false
+    end
+    if not instanceToSell or not instanceToSell.Parent then return false end
+    local living = workspace:FindFirstChild("Living") or workspace
+    local target = living:FindFirstChild(plr.Name) or living
+    pcall(function() instanceToSell.Parent = target end)
+    local args = {
+        [1] = "EndDialogue",
+        [2] = { ["NPC"] = "Merchant", ["Option"] = "Option2", ["Dialogue"] = "Dialogue5" },
+    }
+    local fired = false
+    local ok, remote = pcall(findSellRemote)
+    if ok and remote then
+        pcall(function() remote:FireServer(unpack(args)) end)
+        fired = true
+    else
+        if plr.Character then
+            local r = plr.Character:FindFirstChildWhichIsA("RemoteEvent")
+            if r then
+                pcall(function() r:FireServer(unpack(args)) end)
+                fired = true
+            end
+        end
+    end
+    pcall(function()
+        if not fired and plr.Character and plr.Character:FindFirstChild("RemoteEvent") then
+            plr.Character.RemoteEvent:FireServer(unpack(args))
+        end
+    end)
+    wait(0.12)
+    statsSold += 1
+    return true
+end
+
+local function sellInventory()
+    updateItems()
+    for itemName, count in pairs(items) do
+        if count > 0 and not table.find(nonSellable, itemName) then
+            while true do
+                local item = LocalPlayer.Backpack:FindFirstChild(itemName)
+                    or (LocalPlayer.Character and LocalPlayer.Character:FindFirstChild(itemName))
+                if not item then break end
+                if not sellItem(item) then break end
+            end
+        end
+    end
+end
+
+local registeredItems = {}
+local promptToName = {}
+local promptConns = {}
+
+local function unregisterPrompt(prompt)
+    local name = promptToName[prompt]
+    if not name then return end
+    if promptConns[prompt] then
+        promptConns[prompt]:Disconnect()
+        promptConns[prompt] = nil
+    end
+    promptToName[prompt] = nil
+    if registeredItems[name] then
+        local idx = table.find(registeredItems[name], prompt)
+        if idx then table.remove(registeredItems[name], idx) end
+        if #registeredItems[name] == 0 then registeredItems[name] = nil end
+    end
+end
+
+local function registerPrompt(obj)
+    if obj.ClassName ~= "ProximityPrompt" then return end
+    if obj.Enabled then return end
+    if not obj.Parent:FindFirstChild("PointLight", true) then return end
+    local mesh = obj.Parent:FindFirstChildWhichIsA("MeshPart") or obj.Parent:FindFirstChildWhichIsA("Part")
+    if mesh and mesh.Transparency >= 1 then return end
+    local name = obj.ObjectText
+    if not registeredItems[name] then registeredItems[name] = {} end
+    if table.find(registeredItems[name], obj) then return end
+    table.insert(registeredItems[name], obj)
+    promptToName[obj] = name
+    promptConns[obj] = obj.AncestryChanged:Connect(function()
+        if not obj:IsDescendantOf(workspace) then
+            unregisterPrompt(obj)
+        end
+    end)
+end
+
+pcall(function()
+    for _, v in pairs(workspace.Item_Spawns.Items:GetDescendants()) do
+        registerPrompt(v)
+    end
+    workspace.Item_Spawns.Items.DescendantAdded:Connect(registerPrompt)
+    workspace.Item_Spawns.Items.DescendantRemoving:Connect(unregisterPrompt)
+end)
+
+local itemESPConn = nil
+
+local function addItemESP(v)
+    local itemPart = v:FindFirstChildOfClass("MeshPart") or v:FindFirstChildOfClass("Part")
+    local prox = v:FindFirstChild("ProximityPrompt")
+    if not (itemPart and prox and itemPart.Transparency < 1) then return end
+    local itemName = prox.ObjectText ~= "" and prox.ObjectText or v.Name
+    if not v:FindFirstChild("SFItemESP") then
+        local hl = Instance.new("Highlight")
+        hl.Name = "SFItemESP"
+        hl.FillTransparency = 0.5
+        hl.FillColor = Color3.fromRGB(0, 150, 230)
+        hl.OutlineTransparency = 0
+        hl.OutlineColor = Color3.fromRGB(100, 210, 255)
+        hl.Adornee = v
+        hl.Parent = v
+    end
+    if not v:FindFirstChild("SFItemESPLabel") then
+        local bb = Instance.new("BillboardGui")
+        bb.Name = "SFItemESPLabel"
+        bb.Adornee = itemPart
+        bb.Size = UDim2.new(0, 200, 0, 38)
+        bb.StudsOffset = Vector3.new(0, 3.5, 0)
+        bb.AlwaysOnTop = true
+        bb.Parent = v
+        local tl = Instance.new("TextLabel")
+        tl.Size = UDim2.new(1, 0, 1, 0)
+        tl.BackgroundTransparency = 1
+        tl.Text = itemName
+        tl.TextColor3 = Color3.fromRGB(140, 225, 255)
+        tl.TextSize = 15
+        tl.TextStrokeTransparency = 0
+        tl.TextStrokeColor3 = Color3.fromRGB(0, 80, 160)
+        tl.Font = Enum.Font.GothamBold
+        tl.Parent = bb
+    end
+end
+
+local function enableESP()
+    for _, v in pairs(workspace.Item_Spawns.Items:GetChildren()) do pcall(addItemESP, v) end
+    itemESPConn = workspace.Item_Spawns.Items.ChildAdded:Connect(function(v)
+        task.wait(0.1)
+        pcall(addItemESP, v)
+    end)
+end
+
+local function disableESP()
+    if itemESPConn then itemESPConn:Disconnect() itemESPConn = nil end
+    for _, v in pairs(workspace.Item_Spawns.Items:GetChildren()) do
+        pcall(function()
+            local h = v:FindFirstChild("SFItemESP") if h then h:Destroy() end
+            local b = v:FindFirstChild("SFItemESPLabel") if b then b:Destroy() end
+        end)
+    end
+end
+
+LocalPlayer.Idled:Connect(function()
+    pcall(function()
+        local vu = game:GetService("VirtualUser")
+        vu:CaptureController()
+        vu:ClickButton2(Vector2.new())
+    end)
+end)
+
+spawn(function()
+    while true do
+        wait(1)
+        pcall(function()
+            local coreGui = game:GetService("CoreGui")
+            local prompt = coreGui:FindFirstChild("RobloxPromptGui")
+            if prompt then
+                local overlay = prompt:FindFirstChild("promptOverlay")
+                if overlay then
+                    local errorPrompt = overlay:FindFirstChild("ErrorPrompt")
+                    if errorPrompt and errorPrompt.Visible then
+                        local titleFrame = errorPrompt:FindFirstChild("TitleFrame")
+                        if titleFrame then
+                            local errorTitle = titleFrame:FindFirstChild("ErrorTitle")
+                            if errorTitle and (
+                                string.lower(errorTitle.Text):find("disconnect") or
+                                string.lower(errorTitle.Text):find("kicked") or 
+                                string.lower(errorTitle.Text):find("error")
+                            ) then
+                                TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId)
+                            end
+                        end
+                    end
+                end
+            end
+        end)
+    end
+end)
+
+local farmEnabled = true -- AUTO START ENABLED
+local farmThread = nil
+local sessionStart = os.clock()
+local statsCollected = 0
+local statsHops = 0
+local currentStatus = "Farming"
+
+local currentHiddenTarget = nil
+local anchorConn = nil
+
+local targetSet = {}
+for itemName in pairs(maxLimits) do targetSet[itemName] = true end
+
+task.spawn(function()
+    while true do
+        sellInventory()
+        task.wait(15)
+    end
+end)
+
+local coords = {
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(269.684052, -26.004833, 318.603943),
+    Vector3.new(328.879852, -0.039038, -27.590733),
+    Vector3.new(446.596497, 30.729956, -283.112396),
+    Vector3.new(148.746017, 0.206251, -474.856873),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(500.335114, 79.717171, -77.421906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(269.684052, -26.004833, 318.603943),
+    Vector3.new(328.879852, -0.039038, -27.590733),
+    Vector3.new(446.596497, 30.729956, -283.112396),
+    Vector3.new(148.746017, 0.206251, -474.856873),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(500.335114, 79.717171, -77.421906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(269.684052, -26.004833, 318.603943),
+    Vector3.new(328.879852, -0.039038, -27.590733),
+    Vector3.new(446.596497, 30.729956, -283.112396),
+    Vector3.new(148.746017, 0.206251, -474.856873),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(500.335114, 79.717171, -77.421906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(269.684052, -26.004833, 318.603943),
+    Vector3.new(328.879852, -0.039038, -27.590733),
+    Vector3.new(446.596497, 30.729956, -283.112396),
+    Vector3.new(148.746017, 0.206251, -474.856873),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(500.335114, 79.717171, -77.421906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(269.684052, -26.004833, 318.603943),
+    Vector3.new(328.879852, -0.039038, -27.590733),
+    Vector3.new(446.596497, 30.729956, -283.112396),
+    Vector3.new(148.746017, 0.206251, -474.856873),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(-7.651116, 47.461655, -52.410168),
+    Vector3.new(500.335114, 79.717171, -77.421906),
+    Vector3.new(336.875580, 0.206156, -475.353394),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(269.684052, -26.004833, 318.603943),
+    Vector3.new(328.879852, -0.039038, -27.590733),
+    Vector3.new(446.596497, 30.729956, -283.112396),
+    Vector3.new(1097.178711, 116.668106, -86.763573),
+    Vector3.new(148.746017, 0.206251, -474.856873),
+    Vector3.new(336.875580, 0.206156, -475.353394),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(500.335114, 79.717171, -77.421906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(336.875580, 0.206156, -475.353394),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-7.651116, 47.461655, -52.410168),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(1097.178711, 116.668106, -86.763573),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(269.684052, -26.004833, 318.603943),
+    Vector3.new(328.879852, -0.039038, -27.590733),
+    Vector3.new(-7.651116, 47.461655, -52.410168),
+    Vector3.new(446.596497, 30.729956, -283.112396),
+    Vector3.new(148.746017, 0.206251, -474.856873),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(500.335114, 79.717171, -77.421906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+    Vector3.new(-60.727783, 0.206253, -682.052002),
+    Vector3.new(-490.798950, 10.517332, -771.658875),
+    Vector3.new(-402.275482, 0.244470, -119.126389),
+    Vector3.new(-265.857452, -5.250957, 22.065256),
+    Vector3.new(1097.178711, 116.668106, -86.763573),
+    Vector3.new(151.404068, 0.427911, -725.128906),
+    Vector3.new(333.283508, -0.039038, -100.840248),
+    Vector3.new(-57.569302, 6.892837, 32.625587),
+    Vector3.new(-56.355259, 6.892516, 121.205681),
+    Vector3.new(123.860382, -25.754335, 526.450500),
+}
+
+local function serverHop()
+    currentStatus = "Hopping..."
+    currentHiddenTarget = nil
+    if anchorConn then anchorConn:Disconnect() anchorConn = nil end
+    statsHops += 1
+    
+    TeleportCheck = false
+    
+    local HttpService = game:GetService("HttpService")
+    local TeleportService = game:GetService("TeleportService")
+    local LocalPlayer = game:GetService("Players").LocalPlayer
+    
+    if queueteleport_func then
+        queueteleport_func("loadstring(game:HttpGet('https://pastebin.com/raw/8WrUzkDb'))()")
+    end
+    
+    local success, errorMessage = pcall(function()
+        local servers = {}
+        local req = syn and syn.request or request or http_request or fluxus and fluxus.request
+        
+        if req then
+            local cursor = ""
+            for i = 1, 3 do
+                local url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Desc&limit=100" .. (cursor ~= "" and "&cursor=" .. cursor or "")
+                local response = req({
+                    Url = url,
+                    Method = "GET",
+                    Headers = {
+                        ["Content-Type"] = "application/json"
+                    }
+                })
+                
+                if response and response.Body then
+                    local data = HttpService:JSONDecode(response.Body)
+                    if data and data.data then
+                        for _, server in ipairs(data.data) do
+                            if server.id ~= game.JobId and server.playing < server.maxPlayers then
+                                table.insert(servers, server.id)
+                            end
+                        end
+                        cursor = data.nextPageCursor
+                        if not cursor then break end
+                    end
+                end
+            end
+            
+            if #servers > 0 then
+                local randomServer = servers[math.random(1, #servers)]
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, randomServer, LocalPlayer)
+                return
+            end
+        end
+        
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end)
+    
+    if not success then
+        warn("[ServerHop] Error: " .. tostring(errorMessage))
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
+    end
+end
+
+local function teleportToCoords()
+    local hrp = getRootPart()
+    for _, pos in ipairs(coords) do
+        if not farmEnabled then break end
+        hrp.CFrame = CFrame.new(pos)
+        task.wait(0.1)
+    end
+end
+
+local function runFarm()
+    if getCharacter():FindFirstChild("StandMorph") then
+        pcall(function() getRemoteFunction():InvokeServer("ToggleStand", "Toggle") end)
+        task.wait(0.5)
+    end
+
+    currentStatus = "Teleporting..."
+    teleportToCoords()
+    task.wait(5)
+
+    anchorConn = RunService.Stepped:Connect(function()
+        pcall(function()
+            if not currentHiddenTarget then return end
+            local hrp = getRootPart()
+            hrp.AssemblyLinearVelocity = Vector3.zero
+            hrp.AssemblyAngularVelocity = Vector3.zero
+            hrp.CFrame = currentHiddenTarget
+            local char = LocalPlayer.Character
+            if char then
+                for _, v in pairs(char:GetDescendants()) do
+                    if v:IsA("BasePart") then v.CanCollide = false end
+                end
+            end
+        end)
+    end)
+
+    while farmEnabled do
+        task.wait(0.2)
+        sellInventory()
+
+        local foundAny = false
+
+        for itemName in pairs(targetSet) do
+            if not farmEnabled then break end
+
+            local prompts = registeredItems[itemName]
+            if not (prompts and #prompts > 0) then continue end
+
+            local prompt = prompts[1]
+            local parent = prompt and prompt.Parent
+            if not parent then continue end
+
+            foundAny = true
+            currentStatus = "→ " .. itemName
+
+            local shouldCollect = true
+            if isFullOfItem(itemName) then
+                sellInventory()
+                shouldCollect = true
+            end
+
+            if shouldCollect then
+                local targetCFrame = parent:GetModelCFrame() - Vector3.new(0, 10, 0)
+                currentHiddenTarget = targetCFrame
+                getRootPart().CFrame = targetCFrame
+                repeat task.wait() until
+                    (getRootPart().Position - parent:GetModelCFrame().p).Magnitude <= 40
+                    or not farmEnabled
+                    or not parent.Parent
+
+                if not farmEnabled then break end
+                if not parent.Parent then continue end
+
+                local pingDelay = math.clamp(getPing() / 220, 0, 0.1)
+                task.wait(0.45 + pingDelay)
+
+                if not farmEnabled then break end
+
+                sellInventory()
+
+                repeat
+                    pcall(function()
+                        prompt.RemoteEvent:FireServer()
+                    end)
+                    task.wait()
+                until not farmEnabled
+                    or not (parent:FindFirstChild("ProximityPrompt") and targetSet[itemName])
+
+                if farmEnabled then
+                    statsCollected += 1
+                    currentStatus = "Farming"
+                end
+
+                sellInventory()
+            end
+        end
+
+        if not foundAny then
+            serverHop()
+            return
+        end
+    end
+
+    currentHiddenTarget = nil
+    if anchorConn then anchorConn:Disconnect() anchorConn = nil end
+    currentStatus = "Idle"
+end
+
+-- Rayfield UI
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "special.farm by vanta",
+    LoadingTitle = "Loading special.farm...",
+    LoadingSubtitle = "by vanta",
+    ConfigurationSaving = {
+        Enabled = false,
+        FolderName = nil,
+        FileName = nil
+    },
+    Discord = {
+        Enabled = false,
+        Invite = "",
+        RememberJoins = false
+    },
+    KeySystem = false
+})
+
+local MainTab = Window:CreateTab("Main", "home")
+local StatsTab = Window:CreateTab("Stats", "bar-chart")
+local InventoryTab = Window:CreateTab("Inventory", "backpack")
+
+-- Main Tab
+local FarmToggle = MainTab:CreateToggle({
+    Name = "Enable Farm",
+    CurrentValue = true, -- AUTO ENABLED
+    Flag = "FarmToggle",
+    Callback = function(Value)
+        farmEnabled = Value
+        
+        if farmEnabled then
+            sessionStart = os.clock()
+            statsCollected = 0
+            statsSold = 0
+            statsHops = 0
+            currentStatus = "Farming"
+            enableESP()
+            farmThread = task.spawn(runFarm)
+            Rayfield:Notify({
+                Title = "Farm Started",
+                Content = "Item farming is now active!",
+                Duration = 3,
+                Image = "check"
+            })
+        else
+            farmEnabled = false
+            currentHiddenTarget = nil
+            if anchorConn then anchorConn:Disconnect() anchorConn = nil end
+            pcall(task.cancel, farmThread)
+            farmThread = nil
+            currentStatus = "Idle"
+            sessionStart = nil
+            disableESP()
+            Rayfield:Notify({
+                Title = "Farm Stopped",
+                Content = "Item farming has been stopped.",
+                Duration = 3,
+                Image = "x"
+            })
+        end
+    end
+})
+
+local StatusLabel = MainTab:CreateLabel("Status: Farming")
+
+local AutoSellToggle = MainTab:CreateToggle({
+    Name = "Auto Sell (15s Interval)",
+    CurrentValue = true,
+    Flag = "AutoSellToggle",
+    Callback = function(Value)
+        -- Auto sell is always running in background, this is just visual
+    end
+})
+
+local ESPToggle = MainTab:CreateToggle({
+    Name = "Item ESP",
+    CurrentValue = true, -- AUTO ENABLED
+    Flag = "ESPToggle",
+    Callback = function(Value)
+        if Value then
+            enableESP()
+        else
+            disableESP()
+        end
+    end
+})
+
+local ServerHopButton = MainTab:CreateButton({
+    Name = "Server Hop Now",
+    Callback = function()
+        serverHop()
+    end
+})
+
+-- Stats Tab
+local CollectedLabel = StatsTab:CreateLabel("Collected: 0")
+local SoldLabel = StatsTab:CreateLabel("Sold: 0")
+local HopsLabel = StatsTab:CreateLabel("Server Hops: 0")
+local SessionLabel = StatsTab:CreateLabel("Session: 0:00")
+local SpawnedLabel = StatsTab:CreateLabel("Items Spawned: 0")
+
+-- Inventory Tab
+local ArrowLabel = InventoryTab:CreateLabel("Mysterious Arrow: 0/25")
+local RokaLabel = InventoryTab:CreateLabel("Rokakaka: 0/25")
+local DiamondLabel = InventoryTab:CreateLabel("Diamond: 0/25")
+local SteelBallLabel = InventoryTab:CreateLabel("Steel Ball: 0/10")
+
+local SellNowButton = InventoryTab:CreateButton({
+    Name = "Sell Inventory Now",
+    Callback = function()
+        sellInventory()
+        Rayfield:Notify({
+            Title = "Inventory Sold",
+            Content = "Attempted to sell all sellable items.",
+            Duration = 3,
+            Image = "dollar-sign"
+        })
+    end
+})
+
+-- AUTO START FARMING ON LOAD
+task.spawn(function()
+    task.wait(2) -- Wait for UI to load
+    enableESP()
+    farmThread = task.spawn(runFarm)
+    Rayfield:Notify({
+        Title = "Auto-Farm Active",
+        Content = "Farming started automatically!",
+        Duration = 5,
+        Image = "zap"
+    })
+end)
+
+-- Update Loop
+task.spawn(function()
+    while true do
+        task.wait(0.5)
+        
+        -- Update Status
+        StatusLabel:Set("Status: " .. currentStatus)
+        CollectedLabel:Set("Collected: " .. tostring(statsCollected))
+        SoldLabel:Set("Sold: " .. tostring(statsSold))
+        HopsLabel:Set("Server Hops: " .. tostring(statsHops))
+        
+        -- Session Time
+        if sessionStart then
+            local e = math.floor(os.clock() - sessionStart)
+            SessionLabel:Set(string.format("Session: %d:%02d", math.floor(e / 60), e % 60))
+        else
+            SessionLabel:Set("Session: 0:00")
+        end
+        
+        -- Items Spawned
+        local spawnCount = 0
+        pcall(function()
+            for _, v in pairs(workspace.Item_Spawns.Items:GetChildren()) do
+                local part = v:FindFirstChildOfClass("MeshPart") or v:FindFirstChildOfClass("Part")
+                if part and part.Transparency < 1 then
+                    spawnCount += 1
+                end
+            end
+        end)
+        SpawnedLabel:Set("Items Spawned: " .. tostring(spawnCount))
+        
+        -- Inventory
+        local arrowMax = (maxLimits["Mysterious Arrow"] or 25) * (PlayerOwns2xInv and 2 or 1)
+        local rokaMax = (maxLimits["Rokakaka"] or 25) * (PlayerOwns2xInv and 2 or 1)
+        local diamondMax = (maxLimits["Diamond"] or 25) * (PlayerOwns2xInv and 2 or 1)
+        local steelMax = (maxLimits["Steel Ball"] or 10) * (PlayerOwns2xInv and 2 or 1)
+        
+        ArrowLabel:Set("Mysterious Arrow: " .. #getBpItems("Mysterious Arrow") .. "/" .. arrowMax)
+        RokaLabel:Set("Rokakaka: " .. #getBpItems("Rokakaka") .. "/" .. rokaMax)
+        DiamondLabel:Set("Diamond: " .. #getBpItems("Diamond") .. "/" .. diamondMax)
+        SteelBallLabel:Set("Steel Ball: " .. #getBpItems("Steel Ball") .. "/" .. steelMax)
+    end
+end)
+
+LocalPlayer.CharacterAdded:Connect(function()
+    Backpack = LocalPlayer:WaitForChild("Backpack")
+    if farmEnabled then
+        task.wait(1.5)
+        currentStatus = "Farming (respawned)"
+    end
+end)
+
+print("[special.farm] Loaded | Auto-Rejoin: " .. (queueteleport_func and "ENABLED" or "NOT SUPPORTED"))
