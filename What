@@ -7,7 +7,7 @@ if queueteleport_func then
     Players.LocalPlayer.OnTeleport:Connect(function(State)
         if KeepInfYield and (not TeleportCheck) then
             TeleportCheck = true
-            queueteleport_func("loadstring(game:HttpGet('https://pastebin.com/raw/8WrUzkDb'))()")
+            queueteleport_func("loadstring(game:HttpGet('https://raw.githubusercontent.com/HakTuah/ProjectNepoleon/refs/heads/main/What'))()")
             print("[Auto-Rejoin] Script queued for next server!")
         end
     end)
@@ -16,7 +16,7 @@ else
     warn("[Auto-Rejoin] WARNING: queueteleport/queue_on_teleport not found!")
 end
 
-local SCRIPT_URL = "https://pastebin.com/raw/8WrUzkDb"
+local SCRIPT_URL = "https://raw.githubusercontent.com/HakTuah/ProjectNepoleon/refs/heads/main/What"
 
 local old_tp_bypass; old_tp_bypass = hookmetamethod(game, "__namecall", function(self, ...)
     if tostring(self) == "Returner" then
@@ -608,7 +608,7 @@ local function serverHop()
     local LocalPlayer = game:GetService("Players").LocalPlayer
     
     if queueteleport_func then
-        queueteleport_func("loadstring(game:HttpGet('https://pastebin.com/raw/8WrUzkDb'))()")
+        queueteleport_func("loadstring(game:HttpGet('https://raw.githubusercontent.com/HakTuah/ProjectNepoleon/refs/heads/main/What'))()")
     end
     
     local success, errorMessage = pcall(function()
